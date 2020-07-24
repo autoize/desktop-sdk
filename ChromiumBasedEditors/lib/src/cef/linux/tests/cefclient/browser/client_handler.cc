@@ -40,6 +40,8 @@ enum client_menu_ids {
   CLIENT_ID_CLOSE_DEVTOOLS,
   CLIENT_ID_INSPECT_ELEMENT,
   CLIENT_ID_SHOW_SSL_INFO,
+  CLIENT_ID_CURSOR_CHANGE_DISABLED,
+  CLIENT_ID_OFFLINE,
   CLIENT_ID_TESTMENU_SUBMENU,
   CLIENT_ID_TESTMENU_CHECKITEM,
   CLIENT_ID_TESTMENU_RADIOITEM1,
@@ -260,13 +262,14 @@ ClientHandler::ClientHandler(Delegate* delegate,
 #endif
 
   resource_manager_ = new CefResourceManager();
-  test_runner::SetupResourceManager(resource_manager_);
+  test_runner::SetupResourceManager(resource_manager_, &string_resource_map_);
 
   // Read command line settings.
   CefRefPtr<CefCommandLine> command_line =
       CefCommandLine::GetGlobalCommandLine();
   mouse_cursor_change_disabled_ =
       command_line->HasSwitch(switches::kMouseCursorChangeDisabled);
+  offline_ = command_line->HasSwitch(switches::kOffline);
 }
 
 void ClientHandler::DetachDelegate() {
@@ -277,7 +280,7 @@ void ClientHandler::DetachDelegate() {
   }
 
   DCHECK(delegate_);
-  delegate_ = NULL;
+  delegate_ = nullptr;
 }
 
 bool ClientHandler::OnProcessMessageReceived(
@@ -328,6 +331,16 @@ void ClientHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
       model->AddItem(CLIENT_ID_SHOW_SSL_INFO, "Show SSL information");
     }
 
+    model->AddSeparator();
+    model->AddItem(CLIENT_ID_CURSOR_CHANGE_DISABLED, "Cursor change disabled");
+    if (browser->GetHost()->IsMouseCursorChangeDisabled())
+      model->SetChecked(CLIENT_ID_CURSOR_CHANGE_DISABLED, true);
+
+    model->AddSeparator();
+    model->AddItem(CLIENT_ID_OFFLINE, "Offline mode");
+    if (offline_)
+      model->SetChecked(CLIENT_ID_OFFLINE, true);
+
     // Test context menu features.
     BuildTestMenu(model);
   }
@@ -355,6 +368,14 @@ bool ClientHandler::OnContextMenuCommand(CefRefPtr<CefBrowser> browser,
       return true;
     case CLIENT_ID_SHOW_SSL_INFO:
       ShowSSLInformation(browser);
+      return true;
+    case CLIENT_ID_CURSOR_CHANGE_DISABLED:
+      browser->GetHost()->SetMouseCursorChangeDisabled(
+          !browser->GetHost()->IsMouseCursorChangeDisabled());
+      return true;
+    case CLIENT_ID_OFFLINE:
+      offline_ = !offline_;
+      SetOfflineState(browser, offline_);
       return true;
     default:  // Allow default handling, if any.
       return ExecuteTestMenu(command_id);
@@ -578,6 +599,10 @@ void ClientHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   if (mouse_cursor_change_disabled_)
     browser->GetHost()->SetMouseCursorChangeDisabled(true);
 
+  // Set offline mode if requested via the command-line flag.
+  if (offline_)
+    SetOfflineState(browser, true);
+
   if (browser->GetHost()->GetExtension()) {
     // Browsers hosting extension apps should auto-resize.
     browser->GetHost()->SetAutoResizeEnabled(true, CefSize(20, 20),
@@ -615,7 +640,7 @@ void ClientHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
       delete *(it);
     }
     message_handler_set_.clear();
-    message_router_ = NULL;
+    message_router_ = nullptr;
   }
 
   NotifyBrowserClosed(browser);
@@ -784,7 +809,7 @@ bool ClientHandler::OnSelectClientCertificate(
       command_line->GetSwitchValue(switches::kSslClientCertificate);
 
   if (cert_name.empty()) {
-    callback->Select(NULL);
+    callback->Select(nullptr);
     return true;
   }
 
@@ -831,6 +856,16 @@ void ClientHandler::OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser,
     return;
 
   frame->LoadURL(startup_url_);
+}
+
+void ClientHandler::OnDocumentAvailableInMainFrame(
+    CefRefPtr<CefBrowser> browser) {
+  CEF_REQUIRE_UI_THREAD();
+
+  // Restore offline mode after main frame navigation. Otherwise, offline state
+  // (e.g. `navigator.onLine`) might be wrong in the renderer process.
+  if (offline_)
+    SetOfflineState(browser, true);
 }
 
 cef_return_value_t ClientHandler::OnBeforeResourceLoad(
@@ -971,6 +1006,17 @@ void ClientHandler::ShowSSLInformation(CefRefPtr<CefBrowser> browser) {
   config.with_osr = is_osr();
   config.url = test_runner::GetDataURI(ss.str(), "text/html");
   MainContext::Get()->GetRootWindowManager()->CreateRootWindow(config);
+}
+
+void ClientHandler::SetStringResource(const std::string& page,
+                                      const std::string& data) {
+  if (!CefCurrentlyOn(TID_IO)) {
+    CefPostTask(TID_IO, base::Bind(&ClientHandler::SetStringResource, this,
+                                   page, data));
+    return;
+  }
+
+  string_resource_map_[page] = data;
 }
 
 bool ClientHandler::CreatePopupWindow(CefRefPtr<CefBrowser> browser,
@@ -1155,6 +1201,18 @@ bool ClientHandler::ExecuteTestMenu(int command_id) {
 
   // Allow default handling to proceed.
   return false;
+}
+
+void ClientHandler::SetOfflineState(CefRefPtr<CefBrowser> browser,
+                                    bool offline) {
+  // See DevTools protocol docs for message format specification.
+  CefRefPtr<CefDictionaryValue> params = CefDictionaryValue::Create();
+  params->SetBool("offline", offline);
+  params->SetDouble("latency", 0);
+  params->SetDouble("downloadThroughput", 0);
+  params->SetDouble("uploadThroughput", 0);
+  browser->GetHost()->ExecuteDevToolsMethod(
+      /*message_id=*/0, "Network.emulateNetworkConditions", params);
 }
 
 }  // namespace client

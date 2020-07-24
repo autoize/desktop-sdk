@@ -21,8 +21,12 @@ void TestMapEqual(const CefRequest::HeaderMap& map1,
 
   for (it1 = map1.begin(); it1 != map1.end(); ++it1) {
     bool found = false;
+    std::string name1 = it1->first;
+    std::transform(name1.begin(), name1.end(), name1.begin(), ::tolower);
     for (it2 = map2.begin(); it2 != map2.end(); ++it2) {
-      if (it1->first == it2->first && it1->second == it2->second) {
+      std::string name2 = it2->first;
+      std::transform(name2.begin(), name2.end(), name2.begin(), ::tolower);
+      if (name1 == name2 && it1->second == it2->second) {
         found = true;
         break;
       }
@@ -267,13 +271,12 @@ void TestStringVectorEqual(const std::vector<CefString>& val1,
     EXPECT_STREQ(val1[i].ToString().c_str(), val2[i].ToString().c_str());
 }
 
-bool IsNetworkServiceEnabled() {
+bool TestOldResourceAPI() {
   static int state = -1;
   if (state == -1) {
     CefRefPtr<CefCommandLine> command_line =
         CefCommandLine::GetGlobalCommandLine();
-    const std::string& value = command_line->GetSwitchValue("disable-features");
-    state = value.find("NetworkService") == std::string::npos ? 1 : 0;
+    state = command_line->HasSwitch("test-old-resource-api") ? 1 : 0;
   }
   return state ? true : false;
 }

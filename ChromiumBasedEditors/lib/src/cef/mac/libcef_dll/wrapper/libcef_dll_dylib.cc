@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2020 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=436002ae114825124a9a52a24928a974fcf5408a$
+// $hash=66b734973339eb27399083e978844f7d5a6a6c44$
 //
 
 #include <dlfcn.h>
@@ -23,6 +23,7 @@
 #include "include/capi/cef_drag_data_capi.h"
 #include "include/capi/cef_file_util_capi.h"
 #include "include/capi/cef_image_capi.h"
+#include "include/capi/cef_media_router_capi.h"
 #include "include/capi/cef_menu_model_capi.h"
 #include "include/capi/cef_origin_whitelist_capi.h"
 #include "include/capi/cef_parser_capi.h"
@@ -74,7 +75,7 @@
 
 namespace {
 
-void* g_libcef_handle = NULL;
+void* g_libcef_handle = nullptr;
 
 void* libcef_get_ptr(const char* path, const char* name) {
   void* ptr = dlsym(g_libcef_handle, name);
@@ -138,6 +139,8 @@ typedef cef_string_userfree_t (*cef_uridecode_ptr)(const cef_string_t*,
                                                    cef_uri_unescape_rule_t);
 typedef struct _cef_value_t* (*cef_parse_json_ptr)(const cef_string_t*,
                                                    cef_json_parser_options_t);
+typedef struct _cef_value_t* (
+    *cef_parse_json_buffer_ptr)(const void*, size_t, cef_json_parser_options_t);
 typedef struct _cef_value_t* (*cef_parse_jsonand_return_error_ptr)(
     const cef_string_t*,
     cef_json_parser_options_t,
@@ -153,7 +156,6 @@ typedef int (*cef_register_scheme_handler_factory_ptr)(
     struct _cef_scheme_handler_factory_t*);
 typedef int (*cef_clear_scheme_handler_factories_ptr)();
 typedef int (*cef_is_cert_status_error_ptr)(cef_cert_status_t);
-typedef int (*cef_is_cert_status_minor_error_ptr)(cef_cert_status_t);
 typedef int (*cef_currently_on_ptr)(cef_thread_id_t);
 typedef int (*cef_post_task_ptr)(cef_thread_id_t, struct _cef_task_t*);
 typedef int (*cef_post_delayed_task_ptr)(cef_thread_id_t,
@@ -202,6 +204,7 @@ typedef struct _cef_cookie_manager_t* (
     struct _cef_completion_callback_t*);
 typedef struct _cef_drag_data_t* (*cef_drag_data_create_ptr)();
 typedef struct _cef_image_t* (*cef_image_create_ptr)();
+typedef struct _cef_media_router_t* (*cef_media_router_get_global_ptr)();
 typedef struct _cef_menu_model_t* (*cef_menu_model_create_ptr)(
     struct _cef_menu_model_delegate_t*);
 typedef struct _cef_print_settings_t* (*cef_print_settings_create_ptr)();
@@ -317,12 +320,10 @@ typedef size_t (*cef_display_get_count_ptr)();
 typedef void (*cef_display_get_alls_ptr)(size_t*, struct _cef_display_t**);
 typedef struct _cef_label_button_t* (*cef_label_button_create_ptr)(
     struct _cef_button_delegate_t*,
-    const cef_string_t*,
-    int);
+    const cef_string_t*);
 typedef struct _cef_menu_button_t* (*cef_menu_button_create_ptr)(
     struct _cef_menu_button_delegate_t*,
-    const cef_string_t*,
-    int);
+    const cef_string_t*);
 typedef struct _cef_panel_t* (*cef_panel_create_ptr)(
     struct _cef_panel_delegate_t*);
 typedef struct _cef_scroll_view_t* (*cef_scroll_view_create_ptr)(
@@ -548,6 +549,7 @@ struct libcef_pointers {
   cef_uriencode_ptr cef_uriencode;
   cef_uridecode_ptr cef_uridecode;
   cef_parse_json_ptr cef_parse_json;
+  cef_parse_json_buffer_ptr cef_parse_json_buffer;
   cef_parse_jsonand_return_error_ptr cef_parse_jsonand_return_error;
   cef_write_json_ptr cef_write_json;
   cef_get_path_ptr cef_get_path;
@@ -555,7 +557,6 @@ struct libcef_pointers {
   cef_register_scheme_handler_factory_ptr cef_register_scheme_handler_factory;
   cef_clear_scheme_handler_factories_ptr cef_clear_scheme_handler_factories;
   cef_is_cert_status_error_ptr cef_is_cert_status_error;
-  cef_is_cert_status_minor_error_ptr cef_is_cert_status_minor_error;
   cef_currently_on_ptr cef_currently_on;
   cef_post_task_ptr cef_post_task;
   cef_post_delayed_task_ptr cef_post_delayed_task;
@@ -579,6 +580,7 @@ struct libcef_pointers {
       cef_cookie_manager_get_global_manager;
   cef_drag_data_create_ptr cef_drag_data_create;
   cef_image_create_ptr cef_image_create;
+  cef_media_router_get_global_ptr cef_media_router_get_global;
   cef_menu_model_create_ptr cef_menu_model_create;
   cef_print_settings_create_ptr cef_print_settings_create;
   cef_process_message_create_ptr cef_process_message_create;
@@ -764,6 +766,7 @@ int libcef_init_pointers(const char* path) {
   INIT_ENTRY(cef_uriencode);
   INIT_ENTRY(cef_uridecode);
   INIT_ENTRY(cef_parse_json);
+  INIT_ENTRY(cef_parse_json_buffer);
   INIT_ENTRY(cef_parse_jsonand_return_error);
   INIT_ENTRY(cef_write_json);
   INIT_ENTRY(cef_get_path);
@@ -771,7 +774,6 @@ int libcef_init_pointers(const char* path) {
   INIT_ENTRY(cef_register_scheme_handler_factory);
   INIT_ENTRY(cef_clear_scheme_handler_factories);
   INIT_ENTRY(cef_is_cert_status_error);
-  INIT_ENTRY(cef_is_cert_status_minor_error);
   INIT_ENTRY(cef_currently_on);
   INIT_ENTRY(cef_post_task);
   INIT_ENTRY(cef_post_delayed_task);
@@ -793,6 +795,7 @@ int libcef_init_pointers(const char* path) {
   INIT_ENTRY(cef_cookie_manager_get_global_manager);
   INIT_ENTRY(cef_drag_data_create);
   INIT_ENTRY(cef_image_create);
+  INIT_ENTRY(cef_media_router_get_global);
   INIT_ENTRY(cef_menu_model_create);
   INIT_ENTRY(cef_print_settings_create);
   INIT_ENTRY(cef_process_message_create);
@@ -958,7 +961,7 @@ int cef_unload_library() {
     if (!result) {
       fprintf(stderr, "dlclose: %s\n", dlerror());
     }
-    g_libcef_handle = NULL;
+    g_libcef_handle = nullptr;
   }
   return result;
 }
@@ -1136,6 +1139,13 @@ struct _cef_value_t* cef_parse_json(const cef_string_t* json_string,
 }
 
 NO_SANITIZE("cfi-icall")
+struct _cef_value_t* cef_parse_json_buffer(const void* json,
+                                           size_t json_size,
+                                           cef_json_parser_options_t options) {
+  return g_libcef_pointers.cef_parse_json_buffer(json, json_size, options);
+}
+
+NO_SANITIZE("cfi-icall")
 struct _cef_value_t* cef_parse_jsonand_return_error(
     const cef_string_t* json_string,
     cef_json_parser_options_t options,
@@ -1177,11 +1187,6 @@ NO_SANITIZE("cfi-icall") int cef_clear_scheme_handler_factories() {
 NO_SANITIZE("cfi-icall")
 int cef_is_cert_status_error(cef_cert_status_t status) {
   return g_libcef_pointers.cef_is_cert_status_error(status);
-}
-
-NO_SANITIZE("cfi-icall")
-int cef_is_cert_status_minor_error(cef_cert_status_t status) {
-  return g_libcef_pointers.cef_is_cert_status_minor_error(status);
 }
 
 NO_SANITIZE("cfi-icall") int cef_currently_on(cef_thread_id_t threadId) {
@@ -1309,6 +1314,11 @@ NO_SANITIZE("cfi-icall") struct _cef_drag_data_t* cef_drag_data_create() {
 
 NO_SANITIZE("cfi-icall") struct _cef_image_t* cef_image_create() {
   return g_libcef_pointers.cef_image_create();
+}
+
+NO_SANITIZE("cfi-icall")
+struct _cef_media_router_t* cef_media_router_get_global() {
+  return g_libcef_pointers.cef_media_router_get_global();
 }
 
 NO_SANITIZE("cfi-icall")
@@ -1665,17 +1675,15 @@ void cef_display_get_alls(size_t* displaysCount,
 NO_SANITIZE("cfi-icall")
 struct _cef_label_button_t* cef_label_button_create(
     struct _cef_button_delegate_t* delegate,
-    const cef_string_t* text,
-    int with_frame) {
-  return g_libcef_pointers.cef_label_button_create(delegate, text, with_frame);
+    const cef_string_t* text) {
+  return g_libcef_pointers.cef_label_button_create(delegate, text);
 }
 
 NO_SANITIZE("cfi-icall")
 struct _cef_menu_button_t* cef_menu_button_create(
     struct _cef_menu_button_delegate_t* delegate,
-    const cef_string_t* text,
-    int with_frame) {
-  return g_libcef_pointers.cef_menu_button_create(delegate, text, with_frame);
+    const cef_string_t* text) {
+  return g_libcef_pointers.cef_menu_button_create(delegate, text);
 }
 
 NO_SANITIZE("cfi-icall")

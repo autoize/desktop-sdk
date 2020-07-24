@@ -107,8 +107,7 @@ class ClientRequestContextHandler : public CefRequestContextHandler,
 }  // namespace
 
 RootWindowManager::RootWindowManager(bool terminate_when_all_windows_closed)
-    : terminate_when_all_windows_closed_(terminate_when_all_windows_closed),
-      image_cache_(new ImageCache) {
+    : terminate_when_all_windows_closed_(terminate_when_all_windows_closed) {
   CefRefPtr<CefCommandLine> command_line =
       CefCommandLine::GetGlobalCommandLine();
   DCHECK(command_line.get());
@@ -175,7 +174,7 @@ scoped_refptr<RootWindow> RootWindowManager::CreateRootWindowAsExtension(
   const std::string& extension_url = extension_util::GetExtensionURL(extension);
   if (extension_url.empty()) {
     NOTREACHED() << "Extension cannot be loaded directly.";
-    return NULL;
+    return nullptr;
   }
 
   // Create an initially hidden browser window that loads the extension URL.
@@ -227,7 +226,7 @@ scoped_refptr<RootWindow> RootWindowManager::GetWindowForBrowser(
     if (browser.get() && browser->GetIdentifier() == browser_id)
       return *it;
   }
-  return NULL;
+  return nullptr;
 }
 
 scoped_refptr<RootWindow> RootWindowManager::GetActiveRootWindow() const {
@@ -354,8 +353,11 @@ CefRefPtr<CefRequestContext> RootWindowManager::GetRequestContext(
 }
 
 scoped_refptr<ImageCache> RootWindowManager::GetImageCache() {
-  REQUIRE_MAIN_THREAD();
+  CEF_REQUIRE_UI_THREAD();
 
+  if (!image_cache_) {
+    image_cache_ = new ImageCache;
+  }
   return image_cache_;
 }
 
@@ -380,10 +382,10 @@ void RootWindowManager::OnRootWindowDestroyed(RootWindow* root_window) {
     root_windows_.erase(it);
 
   if (root_window == active_root_window_) {
-    active_root_window_ = NULL;
+    active_root_window_ = nullptr;
 
     base::AutoLock lock_scope(active_browser_lock_);
-    active_browser_ = NULL;
+    active_browser_ = nullptr;
   }
 
   if (terminate_when_all_windows_closed_ && root_windows_.empty()) {
@@ -444,6 +446,10 @@ void RootWindowManager::CleanupOnUIThread() {
   if (temp_window_) {
     // TempWindow must be destroyed on the UI thread.
     temp_window_.reset(nullptr);
+  }
+
+  if (image_cache_) {
+    image_cache_ = nullptr;
   }
 
   // Quit the main message loop.

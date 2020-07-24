@@ -95,7 +95,7 @@ OsrWindowWin::OsrWindowWin(Delegate* delegate,
       last_click_x_(0),
       last_click_y_(0),
       last_click_button_(MBT_LEFT),
-      last_click_count_(0),
+      last_click_count_(1),
       last_click_time_(0),
       last_mouse_down_on_view_(false) {
   DCHECK(delegate_);
@@ -307,7 +307,7 @@ void OsrWindowWin::Create(HWND parent_hwnd, const RECT& rect) {
   SetUserDataPtr(hwnd_, this);
 
 #if defined(CEF_USE_ATL)
-  accessibility_root_ = NULL;
+  accessibility_root_ = nullptr;
 
   // Create/register the drag&drop handler.
   drop_target_ = DropTargetWin::Create(this, hwnd_);
@@ -332,7 +332,7 @@ void OsrWindowWin::Destroy() {
 #if defined(CEF_USE_ATL)
   // Revoke/delete the drag&drop handler.
   RevokeDragDrop(hwnd_);
-  drop_target_ = NULL;
+  drop_target_ = nullptr;
 #endif
 
   render_handler_.reset();
@@ -583,7 +583,7 @@ void OsrWindowWin::OnMouseEvent(UINT message, WPARAM wParam, LPARAM lParam) {
         ((currentTime - last_click_time_) > GetDoubleClickTime());
     if (cancelPreviousClick &&
         (message == WM_MOUSEMOVE || message == WM_MOUSELEAVE)) {
-      last_click_count_ = 0;
+      last_click_count_ = 1;
       last_click_x_ = 0;
       last_click_y_ = 0;
       last_click_time_ = 0;
@@ -791,6 +791,25 @@ void OsrWindowWin::OnKeyEvent(UINT message, WPARAM wParam, LPARAM lParam) {
     event.type = KEYEVENT_CHAR;
   event.modifiers = GetCefKeyboardModifiers(wParam, lParam);
 
+  // mimic alt-gr check behaviour from
+  // src/ui/events/win/events_win_utils.cc: GetModifiersFromKeyState
+  if ((event.type == KEYEVENT_CHAR) && IsKeyDown(VK_RMENU)) {
+    // reverse AltGr detection taken from PlatformKeyMap::UsesAltGraph
+    // instead of checking all combination for ctrl-alt, just check current char
+    HKL current_layout = ::GetKeyboardLayout(0);
+
+    // https://docs.microsoft.com/en-gb/windows/win32/api/winuser/nf-winuser-vkkeyscanexw
+    // ... high-order byte contains the shift state,
+    // which can be a combination of the following flag bits.
+    // 2 Either CTRL key is pressed.
+    // 4 Either ALT key is pressed.
+    SHORT scan_res = ::VkKeyScanExW(wParam, current_layout);
+    if (((scan_res >> 8) & 0xFF) == (2 | 4)) {  // ctrl-alt pressed
+      event.modifiers &= ~(EVENTFLAG_CONTROL_DOWN | EVENTFLAG_ALT_DOWN);
+      event.modifiers |= EVENTFLAG_ALTGR_DOWN;
+    }
+  }
+
   browser_->GetHost()->SendKeyEvent(event);
 }
 
@@ -807,7 +826,7 @@ void OsrWindowWin::OnPaint() {
 
 bool OsrWindowWin::OnEraseBkgnd() {
   // Erase the background when the browser does not exist.
-  return (browser_ == NULL);
+  return (browser_ == nullptr);
 }
 
 bool OsrWindowWin::OnTouchEvent(UINT message, WPARAM wParam, LPARAM lParam) {
@@ -911,8 +930,8 @@ void OsrWindowWin::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   // Detach |this| from the ClientHandlerOsr.
   static_cast<ClientHandlerOsr*>(browser_->GetHost()->GetClient().get())
       ->DetachOsrDelegate();
-  browser_ = NULL;
-  render_handler_->SetBrowser(NULL);
+  browser_ = nullptr;
+  render_handler_->SetBrowser(nullptr);
   Destroy();
 }
 
@@ -1092,7 +1111,8 @@ void OsrWindowWin::UpdateAccessibilityTree(CefRefPtr<CefValue> value) {
   // Update |accessibility_root_| because UpdateAccessibilityTree may have
   // cleared it.
   OsrAXNode* root = accessibility_handler_->GetRootNode();
-  accessibility_root_ = root ? root->GetNativeAccessibleObject(NULL) : NULL;
+  accessibility_root_ =
+      root ? root->GetNativeAccessibleObject(nullptr) : nullptr;
 #endif  // defined(CEF_USE_ATL)
 }
 

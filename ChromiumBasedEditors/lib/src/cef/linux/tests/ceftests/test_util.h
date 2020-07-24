@@ -65,9 +65,6 @@ void TestProcessMessageEqual(CefRefPtr<CefProcessMessage> val1,
 void TestStringVectorEqual(const std::vector<CefString>& val1,
                            const std::vector<CefString>& val2);
 
-// Returns true if the NetworkService is enabled.
-bool IsNetworkServiceEnabled();
-
 enum TestRequestContextMode {
   TEST_RC_MODE_NONE,
   TEST_RC_MODE_GLOBAL,
@@ -80,6 +77,9 @@ inline bool IsTestRequestContextModeCustom(TestRequestContextMode mode) {
   return mode == TEST_RC_MODE_CUSTOM ||
          mode == TEST_RC_MODE_CUSTOM_WITH_HANDLER;
 }
+
+// Returns true if the old CefResourceHandler API should be tested.
+bool TestOldResourceAPI();
 
 // Return a RequestContext object matching the specified |mode|.
 // |cache_path| may be specified for CUSTOM modes.

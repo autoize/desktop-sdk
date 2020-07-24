@@ -85,12 +85,11 @@ enum FrameNavFactoryId {
   FNF_ID_NESTED_IFRAMES_DIFF_ORIGIN,
 };
 
-// Command-line argument names.
-const char kTestArg[] = "test";
-const char kTestFactoryIdArg[] = "testfid";
-
 // IPC message name.
 const char kFrameNavMsg[] = "FrameTest.Navigation";
+
+// Extra info parameter keys.
+const char kFrameNavTestCmdKey[] = "frame-nav-test";
 
 // Origins used in tests.
 const char kFrameNavOrigin0[] = "http://tests-framenav0.com/";
@@ -102,10 +101,6 @@ const char kFrameNavOrigin3[] = "http://tests-framenav3.com/";
 // of kFrameNavOrigin* values. Don't modify this value without checking the
 // below use cases.
 const int kMaxMultiNavNavigations = 4;
-
-// Global variables identifying the currently running test.
-bool g_frame_nav_test = false;
-FrameNavFactoryId g_frame_nav_factory_id = FNF_ID_INVALID;
 
 // Abstract base class representing expectations that result from a navigation.
 class FrameNavExpectations {
@@ -274,70 +269,31 @@ class FrameNavExpectationsFactoryRenderer : public FrameNavExpectationsFactory {
   virtual scoped_ptr<FrameNavExpectationsRenderer> Create(int nav) = 0;
 };
 
-// Browser side app delegate.
-class FrameNavBrowserTest : public ClientAppBrowser::Delegate {
- public:
-  FrameNavBrowserTest() {}
-
-  void OnBeforeChildProcessLaunch(
-      CefRefPtr<ClientAppBrowser> app,
-      CefRefPtr<CefCommandLine> command_line) override {
-    if (!g_frame_nav_test)
-      return;
-
-    std::stringstream ss;
-    ss << g_frame_nav_factory_id;
-
-    // Indicate to the render process that the test should be run.
-    command_line->AppendSwitchWithValue(kTestArg, kFrameNavMsg);
-    command_line->AppendSwitchWithValue(kTestFactoryIdArg, ss.str());
-  }
-
- protected:
-  IMPLEMENT_REFCOUNTING(FrameNavBrowserTest);
-};
-
 // Renderer side handler.
 class FrameNavRendererTest : public ClientAppRenderer::Delegate,
                              public CefLoadHandler {
  public:
   FrameNavRendererTest() : run_test_(false), nav_(0) {}
 
-  void OnRenderThreadCreated(CefRefPtr<ClientAppRenderer> app,
-                             CefRefPtr<CefListValue> extra_info) override {
-    // The g_* values will be set when running in single-process mode.
-    if (!g_frame_nav_test) {
-      // Check that the test should be run.
-      CefRefPtr<CefCommandLine> command_line =
-          CefCommandLine::GetGlobalCommandLine();
-      const std::string& test = command_line->GetSwitchValue(kTestArg);
-      if (test != kFrameNavMsg)
-        return;
-    }
+  void OnBrowserCreated(CefRefPtr<ClientAppRenderer> app,
+                        CefRefPtr<CefBrowser> browser,
+                        CefRefPtr<CefDictionaryValue> extra_info) override {
+    if (!extra_info->HasKey(kFrameNavTestCmdKey))
+      return;
 
-    FrameNavFactoryId factory_id = g_frame_nav_factory_id;
-    if (factory_id == FNF_ID_INVALID) {
-      // Retrieve the factory ID from the command-line.
-      CefRefPtr<CefCommandLine> command_line =
-          CefCommandLine::GetGlobalCommandLine();
-      if (command_line->HasSwitch(kTestFactoryIdArg)) {
-        factory_id = static_cast<FrameNavFactoryId>(
-            atoi(command_line->GetSwitchValue(kTestFactoryIdArg)
-                     .ToString()
-                     .c_str()));
-        if (factory_id == FNF_ID_INVALID)
-          return;
-      }
-    }
+    FrameNavFactoryId factory_id =
+        static_cast<FrameNavFactoryId>(extra_info->GetInt(kFrameNavTestCmdKey));
+    run_test_ = factory_id != FNF_ID_INVALID;
+    if (!run_test_)
+      return;
 
-    run_test_ = true;
     factory_ = FrameNavExpectationsFactoryRenderer::FromID(factory_id);
   }
 
   CefRefPtr<CefLoadHandler> GetLoadHandler(
       CefRefPtr<ClientAppRenderer> app) override {
     if (!run_test_)
-      return NULL;
+      return nullptr;
 
     return this;
   }
@@ -381,7 +337,7 @@ class FrameNavRendererTest : public ClientAppRenderer::Delegate,
                        CefRefPtr<CefFrame> frame) {
     // End of the current expectations object.
     EXPECT_TRUE(expectations_->Finalize()) << "nav = " << nav_;
-    expectations_.reset(NULL);
+    expectations_.reset(nullptr);
 
     // Check if the test has failed.
     bool result = !TestFailed();
@@ -416,26 +372,20 @@ class FrameNavTestHandler : public TestHandler {
  public:
   explicit FrameNavTestHandler(FrameNavFactoryId factory_id)
       : nav_(0),
-        factory_(FrameNavExpectationsFactoryBrowser::FromID(factory_id)) {
-    EXPECT_FALSE(g_frame_nav_test);
-    EXPECT_EQ(FNF_ID_INVALID, g_frame_nav_factory_id);
-    g_frame_nav_test = true;
-    g_frame_nav_factory_id = factory_id;
-  }
+        factory_(FrameNavExpectationsFactoryBrowser::FromID(factory_id)) {}
 
-  ~FrameNavTestHandler() override {
-    EXPECT_TRUE(got_destroyed_);
-    g_frame_nav_test = false;
-    g_frame_nav_factory_id = FNF_ID_INVALID;
-  }
+  ~FrameNavTestHandler() override { EXPECT_TRUE(got_destroyed_); }
 
   void RunTest() override {
     // Create the first expectations object.
     expectations_ = factory_->Create(
         nav_, base::Bind(&FrameNavTestHandler::RunNextNav, this));
 
+    CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
+    extra_info->SetInt(kFrameNavTestCmdKey, factory_->GetID());
+
     // Create the browser with the initial URL.
-    CreateBrowser(expectations_->GetMainURL());
+    CreateBrowser(expectations_->GetMainURL(), nullptr, extra_info);
 
     // Time out the test after a reasonable period of time.
     SetTestTimeout(15000);
@@ -446,7 +396,7 @@ class FrameNavTestHandler : public TestHandler {
   void RunNextNav(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame) {
     // End of the current expectations object.
     EXPECT_TRUE(expectations_->Finalize());
-    expectations_.reset(NULL);
+    expectations_.reset(nullptr);
 
     if (!factory_->HasMoreNavigations()) {
       // End of the test.
@@ -905,7 +855,7 @@ bool VerifySingleBrowserFrames(CefRefPtr<CefBrowser> browser,
   V_DECLARE();
   V_EXPECT_TRUE(browser.get());
 
-  // |frame| may be NULL for callbacks that don't specify one.
+  // |frame| may be nullptr for callbacks that don't specify one.
   if (frame.get()) {
     V_EXPECT_TRUE(VerifySingleBrowserFrame(browser, frame, expected_url));
   }
@@ -957,7 +907,7 @@ class FrameNavExpectationsBrowserTestSingleNav
                             bool isLoading) override {
     V_DECLARE();
     V_EXPECT_TRUE(VerifySingleBrowserFrames(
-        browser, NULL, isLoading ? std::string() : kFrameNavOrigin0));
+        browser, nullptr, isLoading ? std::string() : kFrameNavOrigin0));
     V_EXPECT_TRUE(parent::OnLoadingStateChange(browser, isLoading));
     V_RETURN();
   }
@@ -980,7 +930,7 @@ class FrameNavExpectationsBrowserTestSingleNav
 
   bool OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
     V_DECLARE();
-    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, NULL, std::string()));
+    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, nullptr, std::string()));
     V_EXPECT_TRUE(parent::OnAfterCreated(browser));
     V_RETURN();
   }
@@ -1024,7 +974,8 @@ class FrameNavExpectationsRendererTestSingleNav
                             bool isLoading) override {
     V_DECLARE();
     // A frame should always exist in the renderer process.
-    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, NULL, kFrameNavOrigin0));
+    V_EXPECT_TRUE(
+        VerifySingleBrowserFrames(browser, nullptr, kFrameNavOrigin0));
     V_EXPECT_TRUE(parent::OnLoadingStateChange(browser, isLoading));
     V_RETURN();
   }
@@ -1446,13 +1397,13 @@ class FrameNavExpectationsBrowserTestMultiNav
       got_load_state_change_done_.yes();
     V_DECLARE();
     if (isLoading && nav() == 0) {
-      V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, NULL, std::string()));
+      V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, nullptr, std::string()));
     } else if (isLoading) {
       // Expect the URL from the previous load.
       V_EXPECT_TRUE(
-          VerifySingleBrowserFrames(browser, NULL, GetPreviousMainURL()));
+          VerifySingleBrowserFrames(browser, nullptr, GetPreviousMainURL()));
     } else {
-      V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, NULL, GetMainURL()));
+      V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, nullptr, GetMainURL()));
     }
     V_EXPECT_TRUE(parent::OnLoadingStateChange(browser, isLoading));
     V_RETURN();
@@ -1477,7 +1428,7 @@ class FrameNavExpectationsBrowserTestMultiNav
 
   bool OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
     V_DECLARE();
-    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, NULL, std::string()));
+    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, nullptr, std::string()));
     V_EXPECT_TRUE(parent::OnAfterCreated(browser));
     V_RETURN();
   }
@@ -1554,7 +1505,7 @@ class FrameNavExpectationsRendererTestMultiNav
     if (!isLoading)
       got_load_state_change_done_.yes();
     V_DECLARE();
-    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, NULL, GetMainURL()));
+    V_EXPECT_TRUE(VerifySingleBrowserFrames(browser, nullptr, GetMainURL()));
     V_EXPECT_TRUE(parent::OnLoadingStateChange(browser, isLoading));
     V_RETURN();
   }
@@ -2350,12 +2301,6 @@ FrameNavExpectationsFactoryRenderer::FromID(FrameNavFactoryId id) {
 }
 
 }  // namespace
-
-// Entry point for creating frame browser test objects.
-// Called from client_app_delegates.cc.
-void CreateFrameBrowserTests(ClientAppBrowser::DelegateSet& delegates) {
-  delegates.insert(new FrameNavBrowserTest);
-}
 
 // Entry point for creating frame renderer test objects.
 // Called from client_app_delegates.cc.

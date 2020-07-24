@@ -20,7 +20,7 @@
 #include <X11/keysym.h>
 #elif defined(OS_WIN)
 // Required for resource_util_win, which uses this as an extern
-HINSTANCE hInst = ::GetModuleHandle(NULL);
+HINSTANCE hInst = ::GetModuleHandle(nullptr);
 #endif
 
 namespace {
@@ -36,11 +36,11 @@ const int kOsrHeight = 400;
 
 // bounding client rects for edit box and navigate button
 #if defined(OS_WIN)
-const CefRect kExpandedSelectRect(463, 42, 81, 334);
+const CefRect kExpandedSelectRect(462, 42, 81, 334);
 #elif defined(OS_MACOSX)
-const CefRect kExpandedSelectRect(463, 42, 75, 286);
+const CefRect kExpandedSelectRect(462, 42, 75, 334);
 #elif defined(OS_LINUX)
-const CefRect kExpandedSelectRect(463, 42, 79, 334);
+const CefRect kExpandedSelectRect(462, 42, 79, 334);
 #else
 #error "Unsupported platform"
 #endif  // defined(OS_WIN)
@@ -400,7 +400,7 @@ class OSRTestHandler : public RoutingTestHandler,
       return new CefStreamResourceHandler("text/html", stream);
     }
 
-    return NULL;
+    return nullptr;
   }
 
   // CefRenderHandler methods
@@ -626,12 +626,17 @@ class OSRTestHandler : public RoutingTestHandler,
       case OSR_TEST_RESIZE:
         if (StartTest()) {
           browser->GetHost()->WasResized();
-          // There may be some partial repaints before the full repaint.
-        } else if (IsFullRepaint(dirtyRects[0], width, height)) {
-          EXPECT_EQ(GetScaledInt(kOsrWidth) * 2, width);
-          EXPECT_EQ(GetScaledInt(kOsrHeight) * 2, height);
+        } else {
+          // There may be some partial repaints before the full repaint at the
+          // desired size.
+          const int desired_width = GetScaledInt(kOsrWidth) * 2;
+          const int desired_height = GetScaledInt(kOsrHeight) * 2;
+
           EXPECT_EQ(dirtyRects.size(), 1U);
-          DestroySucceededTestSoon();
+          if (width == desired_width && height == desired_height &&
+              IsFullRepaint(dirtyRects[0], width, height)) {
+            DestroySucceededTestSoon();
+          }
         }
         break;
       case OSR_TEST_INVALIDATE: {
@@ -785,13 +790,13 @@ class OSRTestHandler : public RoutingTestHandler,
             EXPECT_GT(dirtyRects[0].height, kExpandedSelectRect.height);
           }
 
-          // first pixel of border
+          // Unselected option background color is cyan.
+          // Go down 100 pixels to skip the selected option and over 5 pixels to
+          // avoid hitting the border.
+          const uint32 offset = dirtyRects[0].width * 100 + 5;
+          EXPECT_EQ(0xff00ffff,
+                    *(reinterpret_cast<const uint32*>(buffer) + offset));
 
-#if defined(OS_MACOSX)
-          EXPECT_EQ(0xff3979d1U, *(reinterpret_cast<const uint32*>(buffer)));
-#else
-          EXPECT_EQ(0xff6497eaU, *(reinterpret_cast<const uint32*>(buffer)));
-#endif
           if (ExpectComputedPopupSize()) {
             EXPECT_EQ(expanded_select_rect.width, width);
             EXPECT_EQ(expanded_select_rect.height, height);
@@ -823,11 +828,15 @@ class OSRTestHandler : public RoutingTestHandler,
             const CefRect& expanded_select_rect =
                 GetScaledRect(kExpandedSelectRect);
             EXPECT_EQ(dirtyRects.size(), 1U);
-            EXPECT_EQ(0, dirtyRects[0].x);
-            EXPECT_EQ(0, dirtyRects[0].y);
+
+            const int scaled_int_1 = GetScaledInt(1);
+            EXPECT_NEAR(0, dirtyRects[0].x, scaled_int_1);
+            EXPECT_NEAR(0, dirtyRects[0].y, scaled_int_1);
             if (ExpectComputedPopupSize()) {
-              EXPECT_EQ(expanded_select_rect.width, dirtyRects[0].width);
-              EXPECT_EQ(expanded_select_rect.height, dirtyRects[0].height);
+              EXPECT_NEAR(expanded_select_rect.width, dirtyRects[0].width,
+                          scaled_int_1 * 2);
+              EXPECT_NEAR(expanded_select_rect.height, dirtyRects[0].height,
+                          scaled_int_1 * 2);
             } else {
               EXPECT_GT(dirtyRects[0].width, kExpandedSelectRect.width);
               EXPECT_GT(dirtyRects[0].height, kExpandedSelectRect.height);
@@ -1146,7 +1155,7 @@ class OSRTestHandler : public RoutingTestHandler,
                       const CefCursorInfo& custom_cursor_info) override {
     if (test_type_ == OSR_TEST_CURSOR && started()) {
       EXPECT_EQ(CT_HAND, type);
-      EXPECT_EQ(NULL, custom_cursor_info.buffer);
+      EXPECT_EQ(nullptr, custom_cursor_info.buffer);
       DestroySucceededTestSoon();
     }
   }
@@ -1173,7 +1182,7 @@ class OSRTestHandler : public RoutingTestHandler,
       const CefRect& dragdiv = GetElementBounds("dragdiv");
       EXPECT_TRUE(drag_data->HasImage());
       CefRefPtr<CefImage> image = drag_data->GetImage();
-      EXPECT_TRUE(image.get() != NULL);
+      EXPECT_TRUE(image.get() != nullptr);
       if (image.get()) {
         // Drag image height seems to always be + 1px greater than the drag rect
         // on Linux. Therefore allow it to be +/- 1px.
@@ -1331,7 +1340,8 @@ class OSRTestHandler : public RoutingTestHandler,
 #else
 #error "Unsupported platform"
 #endif
-    CefBrowserHost::CreateBrowser(windowInfo, this, url, settings, NULL, NULL);
+    CefBrowserHost::CreateBrowser(windowInfo, this, url, settings, nullptr,
+                                  nullptr);
   }
 
   CefRect GetScaledRect(const CefRect& rect) const {

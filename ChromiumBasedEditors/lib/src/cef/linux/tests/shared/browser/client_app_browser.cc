@@ -47,6 +47,11 @@ void ClientAppBrowser::OnBeforeCommandLineProcessing(
       command_line->AppendSwitch("disable-gpu-shader-disk-cache");
     }
 
+#if defined(OS_MACOSX)
+    // Disable the toolchain prompt on macOS.
+    command_line->AppendSwitch("use-mock-keychain");
+#endif
+
     DelegateSet::iterator it = delegates_.begin();
     for (; it != delegates_.end(); ++it)
       (*it)->OnBeforeCommandLineProcessing(this, command_line);
@@ -57,9 +62,9 @@ void ClientAppBrowser::OnContextInitialized() {
   if (!cookieable_schemes_.empty()) {
     // Register cookieable schemes with the global cookie manager.
     CefRefPtr<CefCookieManager> manager =
-        CefCookieManager::GetGlobalManager(NULL);
+        CefCookieManager::GetGlobalManager(nullptr);
     DCHECK(manager.get());
-    manager->SetSupportedSchemes(cookieable_schemes_, true, NULL);
+    manager->SetSupportedSchemes(cookieable_schemes_, true, nullptr);
   }
 
   print_handler_ = CreatePrintHandler();

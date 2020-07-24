@@ -69,6 +69,8 @@ set(LIBCEF_CPPTOC_SRCS
   cpptoc/cpptoc_scoped.h
   cpptoc/delete_cookies_callback_cpptoc.cc
   cpptoc/delete_cookies_callback_cpptoc.h
+  cpptoc/dev_tools_message_observer_cpptoc.cc
+  cpptoc/dev_tools_message_observer_cpptoc.h
   cpptoc/dialog_handler_cpptoc.cc
   cpptoc/dialog_handler_cpptoc.h
   cpptoc/display_handler_cpptoc.cc
@@ -97,6 +99,12 @@ set(LIBCEF_CPPTOC_SRCS
   cpptoc/life_span_handler_cpptoc.h
   cpptoc/load_handler_cpptoc.cc
   cpptoc/load_handler_cpptoc.h
+  cpptoc/media_observer_cpptoc.cc
+  cpptoc/media_observer_cpptoc.h
+  cpptoc/media_route_create_callback_cpptoc.cc
+  cpptoc/media_route_create_callback_cpptoc.h
+  cpptoc/media_sink_device_info_callback_cpptoc.cc
+  cpptoc/media_sink_device_info_callback_cpptoc.h
   cpptoc/menu_model_delegate_cpptoc.cc
   cpptoc/menu_model_delegate_cpptoc.h
   cpptoc/navigation_entry_visitor_cpptoc.cc
@@ -235,6 +243,14 @@ set(LIBCEF_CTOCPP_SRCS
   ctocpp/jsdialog_callback_ctocpp.h
   ctocpp/list_value_ctocpp.cc
   ctocpp/list_value_ctocpp.h
+  ctocpp/media_route_ctocpp.cc
+  ctocpp/media_route_ctocpp.h
+  ctocpp/media_router_ctocpp.cc
+  ctocpp/media_router_ctocpp.h
+  ctocpp/media_sink_ctocpp.cc
+  ctocpp/media_sink_ctocpp.h
+  ctocpp/media_source_ctocpp.cc
+  ctocpp/media_source_ctocpp.h
   ctocpp/menu_model_ctocpp.cc
   ctocpp/menu_model_ctocpp.h
   ctocpp/navigation_entry_ctocpp.cc
@@ -251,6 +267,8 @@ set(LIBCEF_CTOCPP_SRCS
   ctocpp/print_settings_ctocpp.h
   ctocpp/process_message_ctocpp.cc
   ctocpp/process_message_ctocpp.h
+  ctocpp/registration_ctocpp.cc
+  ctocpp/registration_ctocpp.h
   ctocpp/request_callback_ctocpp.cc
   ctocpp/request_callback_ctocpp.h
   ctocpp/request_context_ctocpp.cc
@@ -380,6 +398,7 @@ set(LIBCEF_INCLUDE_SRCS
   ../include/cef_context_menu_handler.h
   ../include/cef_cookie.h
   ../include/cef_crash_util.h
+  ../include/cef_devtools_message_observer.h
   ../include/cef_dialog_handler.h
   ../include/cef_display_handler.h
   ../include/cef_dom.h
@@ -398,6 +417,7 @@ set(LIBCEF_INCLUDE_SRCS
   ../include/cef_keyboard_handler.h
   ../include/cef_life_span_handler.h
   ../include/cef_load_handler.h
+  ../include/cef_media_router.h
   ../include/cef_menu_model.h
   ../include/cef_menu_model_delegate.h
   ../include/cef_navigation_entry.h
@@ -408,6 +428,7 @@ set(LIBCEF_INCLUDE_SRCS
   ../include/cef_print_settings.h
   ../include/cef_process_message.h
   ../include/cef_process_util.h
+  ../include/cef_registration.h
   ../include/cef_render_handler.h
   ../include/cef_render_process_handler.h
   ../include/cef_request.h
@@ -486,6 +507,7 @@ set(LIBCEF_INCLUDE_BASE_INTERNAL_SRCS
   ../include/base/internal/cef_thread_checker_impl.h
   )
 set(LIBCEF_INCLUDE_BASE_INTERNAL_SRCS_LINUX
+  ../include/base/internal/cef_atomicops_arm64_gcc.h
   ../include/base/internal/cef_atomicops_arm_gcc.h
   ../include/base/internal/cef_atomicops_atomicword_compat.h
   ../include/base/internal/cef_atomicops_x86_gcc.h
@@ -495,6 +517,7 @@ set(LIBCEF_INCLUDE_BASE_INTERNAL_SRCS_MACOSX
   ../include/base/internal/cef_atomicops_mac.h
   )
 set(LIBCEF_INCLUDE_BASE_INTERNAL_SRCS_WINDOWS
+  ../include/base/internal/cef_atomicops_arm64_msvc.h
   ../include/base/internal/cef_atomicops_x86_msvc.h
   ../include/base/internal/cef_bind_internal_win.h
   )
@@ -515,6 +538,7 @@ set(LIBCEF_INCLUDE_CAPI_SRCS
   ../include/capi/cef_context_menu_handler_capi.h
   ../include/capi/cef_cookie_capi.h
   ../include/capi/cef_crash_util_capi.h
+  ../include/capi/cef_devtools_message_observer_capi.h
   ../include/capi/cef_dialog_handler_capi.h
   ../include/capi/cef_display_handler_capi.h
   ../include/capi/cef_dom_capi.h
@@ -533,6 +557,7 @@ set(LIBCEF_INCLUDE_CAPI_SRCS
   ../include/capi/cef_keyboard_handler_capi.h
   ../include/capi/cef_life_span_handler_capi.h
   ../include/capi/cef_load_handler_capi.h
+  ../include/capi/cef_media_router_capi.h
   ../include/capi/cef_menu_model_capi.h
   ../include/capi/cef_menu_model_delegate_capi.h
   ../include/capi/cef_navigation_entry_capi.h
@@ -543,6 +568,7 @@ set(LIBCEF_INCLUDE_CAPI_SRCS
   ../include/capi/cef_print_settings_capi.h
   ../include/capi/cef_process_message_capi.h
   ../include/capi/cef_process_util_capi.h
+  ../include/capi/cef_registration_capi.h
   ../include/capi/cef_render_handler_capi.h
   ../include/capi/cef_render_process_handler_capi.h
   ../include/capi/cef_request_callback_capi.h

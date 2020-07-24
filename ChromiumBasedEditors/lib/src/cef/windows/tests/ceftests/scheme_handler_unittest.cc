@@ -36,11 +36,14 @@ class TestResults {
     got_request.reset();
     got_read.reset();
     got_output.reset();
+    got_sub_output.reset();
     got_redirect.reset();
     got_error.reset();
+    got_sub_error.reset();
     got_sub_request.reset();
     got_sub_read.reset();
     got_sub_success.reset();
+    got_exit_request.reset();
   }
 
   std::string url;
@@ -69,14 +72,15 @@ class TestResults {
   // Delay for returning scheme handler results.
   int delay;
 
-  TrackCallback got_request, got_read, got_output, got_redirect, got_error,
-      got_sub_redirect, got_sub_request, got_sub_read, got_sub_success;
+  TrackCallback got_request, got_read, got_output, got_sub_output, got_redirect,
+      got_error, got_sub_error, got_sub_redirect, got_sub_request, got_sub_read,
+      got_sub_success, got_exit_request;
 };
 
 // Current scheme handler object. Used when destroying the test from
 // ClientSchemeHandler::ProcessRequest().
 class TestSchemeHandler;
-TestSchemeHandler* g_current_handler = NULL;
+TestSchemeHandler* g_current_handler = nullptr;
 
 class TestSchemeHandler : public TestHandler {
  public:
@@ -102,18 +106,41 @@ class TestSchemeHandler : public TestHandler {
   // ClientSchemeHandler::ProcessRequest().
   void DestroyTest() override { TestHandler::DestroyTest(); }
 
+  void DestroyTestIfDone() {
+    if (!test_results_->exit_url.empty() && !test_results_->got_exit_request) {
+      return;
+    }
+
+    if (!test_results_->sub_url.empty() &&
+        !(test_results_->got_sub_output || test_results_->got_sub_error ||
+          test_results_->got_exit_request)) {
+      return;
+    }
+
+    if (!(test_results_->got_output || test_results_->got_error)) {
+      return;
+    }
+
+    DestroyTest();
+  }
+
+  bool IsExitURL(const std::string& url) const {
+    return !test_results_->exit_url.empty() &&
+           url.find(test_results_->exit_url) != std::string::npos;
+  }
+
   cef_return_value_t OnBeforeResourceLoad(
       CefRefPtr<CefBrowser> browser,
       CefRefPtr<CefFrame> frame,
       CefRefPtr<CefRequest> request,
       CefRefPtr<CefRequestCallback> callback) override {
-    std::string newUrl = request->GetURL();
-    if (!test_results_->exit_url.empty() &&
-        newUrl.find(test_results_->exit_url) != std::string::npos) {
+    const std::string& newUrl = request->GetURL();
+    if (IsExitURL(newUrl)) {
+      test_results_->got_exit_request.yes();
       // XHR tests use an exit URL to destroy the test.
       if (newUrl.find("SUCCESS") != std::string::npos)
         test_results_->got_sub_success.yes();
-      DestroyTest();
+      DestroyTestIfDone();
       return RV_CANCEL;
     }
 
@@ -140,16 +167,20 @@ class TestSchemeHandler : public TestHandler {
   void OnLoadEnd(CefRefPtr<CefBrowser> browser,
                  CefRefPtr<CefFrame> frame,
                  int httpStatusCode) override {
-    std::string url = frame->GetURL();
-    if (url == test_results_->url || test_results_->status_code != 200) {
+    const std::string& url = frame->GetURL();
+    if (url == test_results_->url)
       test_results_->got_output.yes();
+    else if (url == test_results_->sub_url)
+      test_results_->got_sub_output.yes();
+    else if (IsExitURL(url))
+      return;
 
+    if (url == test_results_->url || test_results_->status_code != 200) {
       // Test that the status code is correct.
       EXPECT_EQ(httpStatusCode, test_results_->status_code);
-
-      if (test_results_->sub_url.empty())
-        DestroyTest();
     }
+
+    DestroyTestIfDone();
   }
 
   void OnLoadError(CefRefPtr<CefBrowser> browser,
@@ -157,14 +188,22 @@ class TestSchemeHandler : public TestHandler {
                    ErrorCode errorCode,
                    const CefString& errorText,
                    const CefString& failedUrl) override {
-    test_results_->got_error.yes();
+    const std::string& url = failedUrl;
+    if (url == test_results_->url)
+      test_results_->got_error.yes();
+    else if (url == test_results_->sub_url)
+      test_results_->got_sub_error.yes();
+    else if (IsExitURL(url))
+      return;
+
     // Tests sometimes also fail with ERR_ABORTED.
     if (!(test_results_->expected_error_code == 0 &&
           errorCode == ERR_ABORTED)) {
       EXPECT_EQ(test_results_->expected_error_code, errorCode)
           << failedUrl.ToString();
     }
-    DestroyTest();
+
+    DestroyTestIfDone();
   }
 
  protected:
@@ -173,9 +212,9 @@ class TestSchemeHandler : public TestHandler {
   IMPLEMENT_REFCOUNTING(TestSchemeHandler);
 };
 
-class ClientSchemeHandler : public CefResourceHandler {
+class ClientSchemeHandlerOld : public CefResourceHandler {
  public:
-  explicit ClientSchemeHandler(TestResults* tr)
+  explicit ClientSchemeHandlerOld(TestResults* tr)
       : test_results_(tr), offset_(0), is_sub_(false), has_delayed_(false) {}
 
   bool ProcessRequest(CefRefPtr<CefRequest> request,
@@ -220,8 +259,7 @@ class ClientSchemeHandler : public CefResourceHandler {
       // CEF_SETTINGS_ACCEPT_LANGUAGE value from
       // CefSettings.accept_language_list set in CefTestSuite::GetSettings()
       // and expanded internally by ComputeAcceptLanguageFromPref.
-      EXPECT_STREQ(IsNetworkServiceEnabled() ? "en-GB,en;q=0.9" : "en-GB",
-                   accept_language.data());
+      EXPECT_STREQ("en-GB,en;q=0.9", accept_language.data());
     }
 
     if (handled) {
@@ -291,10 +329,11 @@ class ClientSchemeHandler : public CefResourceHandler {
     if (test_results_->delay > 0) {
       if (!has_delayed_) {
         // Continue after a delay.
-        CefPostDelayedTask(TID_IO,
-                           base::Bind(&ClientSchemeHandler::ContinueAfterDelay,
-                                      this, callback),
-                           test_results_->delay);
+        CefPostDelayedTask(
+            TID_IO,
+            base::Bind(&ClientSchemeHandlerOld::ContinueAfterDelay, this,
+                       callback),
+            test_results_->delay);
         bytes_read = 0;
         return true;
       }
@@ -340,7 +379,206 @@ class ClientSchemeHandler : public CefResourceHandler {
   bool is_sub_;
   bool has_delayed_;
 
+  IMPLEMENT_REFCOUNTING(ClientSchemeHandlerOld);
+  DISALLOW_COPY_AND_ASSIGN(ClientSchemeHandlerOld);
+};
+
+class ClientSchemeHandler : public CefResourceHandler {
+ public:
+  explicit ClientSchemeHandler(TestResults* tr)
+      : test_results_(tr), offset_(0), is_sub_(false), has_delayed_(false) {}
+
+  bool Open(CefRefPtr<CefRequest> request,
+            bool& handle_request,
+            CefRefPtr<CefCallback> callback) override {
+    EXPECT_FALSE(CefCurrentlyOn(TID_UI) || CefCurrentlyOn(TID_IO));
+
+    bool handled = false;
+
+    std::string url = request->GetURL();
+    is_sub_ =
+        (!test_results_->sub_url.empty() && test_results_->sub_url == url);
+
+    if (is_sub_) {
+      test_results_->got_sub_request.yes();
+
+      if (!test_results_->sub_html.empty())
+        handled = true;
+    } else {
+      EXPECT_EQ(url, test_results_->url);
+
+      test_results_->got_request.yes();
+
+      if (!test_results_->html.empty())
+        handled = true;
+    }
+
+    std::string accept_language;
+    CefRequest::HeaderMap headerMap;
+    CefRequest::HeaderMap::iterator headerIter;
+    request->GetHeaderMap(headerMap);
+    headerIter = headerMap.find("Accept-Language");
+    if (headerIter != headerMap.end())
+      accept_language = headerIter->second;
+    EXPECT_TRUE(!accept_language.empty());
+
+    if (!test_results_->accept_language.empty()) {
+      // Value from CefBrowserSettings.accept_language set in
+      // PopulateBrowserSettings().
+      EXPECT_STREQ(test_results_->accept_language.data(),
+                   accept_language.data());
+    } else {
+      // CEF_SETTINGS_ACCEPT_LANGUAGE value from
+      // CefSettings.accept_language_list set in CefTestSuite::GetSettings()
+      // and expanded internally by ComputeAcceptLanguageFromPref.
+      EXPECT_STREQ("en-GB,en;q=0.9", accept_language.data());
+    }
+
+    // Continue or cancel the request immediately based on the return value.
+    handle_request = true;
+
+    if (handled) {
+      if (test_results_->delay > 0) {
+        // Continue after the delay.
+        handle_request = false;
+        CefPostDelayedTask(TID_FILE_USER_BLOCKING,
+                           base::Bind(&CefCallback::Continue, callback.get()),
+                           test_results_->delay);
+      }
+      return true;
+    } else if (test_results_->response_error_code != ERR_NONE) {
+      // Propagate the error code.
+      return true;
+    }
+
+    // Response was canceled.
+    if (g_current_handler)
+      g_current_handler->DestroyTest();
+    return false;
+  }
+
+  bool ProcessRequest(CefRefPtr<CefRequest> request,
+                      CefRefPtr<CefCallback> callback) override {
+    EXPECT_TRUE(false);  // Not reached.
+    return false;
+  }
+
+  void GetResponseHeaders(CefRefPtr<CefResponse> response,
+                          int64& response_length,
+                          CefString& redirectUrl) override {
+    if (is_sub_) {
+      response->SetStatus(test_results_->sub_status_code);
+
+      if (!test_results_->sub_allow_origin.empty()) {
+        // Set the Access-Control-Allow-Origin header to allow cross-domain
+        // scripting.
+        CefResponse::HeaderMap headers;
+        headers.insert(std::make_pair("Access-Control-Allow-Origin",
+                                      test_results_->sub_allow_origin));
+        response->SetHeaderMap(headers);
+      }
+
+      if (!test_results_->sub_html.empty()) {
+        response->SetMimeType("text/html");
+        response_length = test_results_->sub_html.size();
+      }
+    } else if (!test_results_->redirect_url.empty()) {
+      redirectUrl = test_results_->redirect_url;
+    } else if (test_results_->response_error_code != ERR_NONE) {
+      response->SetError(test_results_->response_error_code);
+    } else {
+      response->SetStatus(test_results_->status_code);
+
+      if (!test_results_->html.empty()) {
+        response->SetMimeType("text/html");
+        response_length = test_results_->html.size();
+      }
+    }
+  }
+
+  void Cancel() override { EXPECT_TRUE(CefCurrentlyOn(TID_IO)); }
+
+  bool Read(void* data_out,
+            int bytes_to_read,
+            int& bytes_read,
+            CefRefPtr<CefResourceReadCallback> callback) override {
+    EXPECT_FALSE(CefCurrentlyOn(TID_UI) || CefCurrentlyOn(TID_IO));
+
+    if (test_results_->delay > 0) {
+      if (!has_delayed_) {
+        // Continue after a delay.
+        CefPostDelayedTask(TID_FILE_USER_BLOCKING,
+                           base::Bind(&ClientSchemeHandler::ContinueAfterDelay,
+                                      this, data_out, bytes_to_read, callback),
+                           test_results_->delay);
+        bytes_read = 0;
+        return true;
+      }
+
+      has_delayed_ = false;
+    }
+
+    return GetData(data_out, bytes_to_read, bytes_read);
+  }
+
+  bool ReadResponse(void* data_out,
+                    int bytes_to_read,
+                    int& bytes_read,
+                    CefRefPtr<CefCallback> callback) override {
+    EXPECT_TRUE(false);  // Not reached.
+    bytes_read = -2;
+    return false;
+  }
+
+ private:
+  void ContinueAfterDelay(void* data_out,
+                          int bytes_to_read,
+                          CefRefPtr<CefResourceReadCallback> callback) {
+    EXPECT_FALSE(CefCurrentlyOn(TID_UI) || CefCurrentlyOn(TID_IO));
+
+    has_delayed_ = true;
+
+    int bytes_read = 0;
+    GetData(data_out, bytes_to_read, bytes_read);
+    callback->Continue(bytes_read);
+  }
+
+  bool GetData(void* data_out, int bytes_to_read, int& bytes_read) {
+    std::string* data;
+
+    if (is_sub_) {
+      test_results_->got_sub_read.yes();
+      data = &test_results_->sub_html;
+    } else {
+      test_results_->got_read.yes();
+      data = &test_results_->html;
+    }
+
+    // Default to response complete.
+    bool has_data = false;
+    bytes_read = 0;
+
+    size_t size = data->size();
+    if (offset_ < size) {
+      int transfer_size =
+          std::min(bytes_to_read, static_cast<int>(size - offset_));
+      memcpy(data_out, data->c_str() + offset_, transfer_size);
+      offset_ += transfer_size;
+
+      bytes_read = transfer_size;
+      has_data = true;
+    }
+
+    return has_data;
+  }
+
+  TestResults* test_results_;
+  size_t offset_;
+  bool is_sub_;
+  bool has_delayed_;
+
   IMPLEMENT_REFCOUNTING(ClientSchemeHandler);
+  DISALLOW_COPY_AND_ASSIGN(ClientSchemeHandler);
 };
 
 class ClientSchemeHandlerFactory : public CefSchemeHandlerFactory {
@@ -352,12 +590,16 @@ class ClientSchemeHandlerFactory : public CefSchemeHandlerFactory {
                                        const CefString& scheme_name,
                                        CefRefPtr<CefRequest> request) override {
     EXPECT_TRUE(CefCurrentlyOn(TID_IO));
+    if (TestOldResourceAPI()) {
+      return new ClientSchemeHandlerOld(test_results_);
+    }
     return new ClientSchemeHandler(test_results_);
   }
 
   TestResults* test_results_;
 
   IMPLEMENT_REFCOUNTING(ClientSchemeHandlerFactory);
+  DISALLOW_COPY_AND_ASSIGN(ClientSchemeHandlerFactory);
 };
 
 // Global test results object.
@@ -581,7 +823,7 @@ TEST(SchemeHandlerTest, Registration) {
   EXPECT_TRUE(g_TestResults.got_output);
 
   // Unregister the handler.
-  EXPECT_TRUE(CefRegisterSchemeHandlerFactory("customstd", "test", NULL));
+  EXPECT_TRUE(CefRegisterSchemeHandlerFactory("customstd", "test", nullptr));
   WaitForIOThread();
 
   g_TestResults.got_request.reset();
@@ -769,8 +1011,7 @@ TEST(SchemeHandlerTest, CustomNonStandardNameNotHandled) {
 TEST(SchemeHandlerTest, CustomStandardDomainNotHandled) {
   RegisterTestScheme("customstd", "test");
   g_TestResults.url = "customstd://noexist/run.html";
-  g_TestResults.expected_error_code =
-      IsNetworkServiceEnabled() ? ERR_UNKNOWN_URL_SCHEME : ERR_FAILED;
+  g_TestResults.expected_error_code = ERR_UNKNOWN_URL_SCHEME;
 
   CefRefPtr<TestSchemeHandler> handler = new TestSchemeHandler(&g_TestResults);
   handler->ExecuteTest();
@@ -1145,6 +1386,91 @@ TEST(SchemeHandlerTest, CustomStandardXSSDifferentOrigin) {
   RegisterTestScheme("customstd", "test1");
   RegisterTestScheme("customstd", "test2");
   SetUpXSS("customstd://test1/run.html", "customstd://test2/iframe.html");
+
+  CefRefPtr<TestSchemeHandler> handler = new TestSchemeHandler(&g_TestResults);
+  handler->ExecuteTest();
+  ReleaseAndWaitForDestructor(handler);
+
+  EXPECT_TRUE(g_TestResults.got_request);
+  EXPECT_TRUE(g_TestResults.got_read);
+  EXPECT_TRUE(g_TestResults.got_output);
+  EXPECT_TRUE(g_TestResults.got_sub_request);
+  EXPECT_TRUE(g_TestResults.got_sub_read);
+  EXPECT_FALSE(g_TestResults.got_sub_success);
+
+  ClearTestSchemes();
+}
+
+// Test that a cross-protocol iframe load succeeds, and that the custom
+// standard scheme cannot generate XSS requests to the HTTP protocol by default.
+TEST(SchemeHandlerTest, CustomStandardXSSDifferentProtocolHttp) {
+  RegisterTestScheme("customstd", "test1");
+  RegisterTestScheme("http", "test2");
+  SetUpXSS("customstd://test1/run.html", "http://test2/iframe.html");
+
+  CefRefPtr<TestSchemeHandler> handler = new TestSchemeHandler(&g_TestResults);
+  handler->ExecuteTest();
+  ReleaseAndWaitForDestructor(handler);
+
+  EXPECT_TRUE(g_TestResults.got_request);
+  EXPECT_TRUE(g_TestResults.got_read);
+  EXPECT_TRUE(g_TestResults.got_output);
+  EXPECT_TRUE(g_TestResults.got_sub_request);
+  EXPECT_TRUE(g_TestResults.got_sub_read);
+  EXPECT_FALSE(g_TestResults.got_sub_success);
+
+  ClearTestSchemes();
+}
+
+// Test that a cross-protocol iframe load succeeds, and that the custom
+// standard scheme cannot generate XSS requests to a non-standard scheme by
+// default.
+TEST(SchemeHandlerTest, CustomStandardXSSDifferentProtocolCustomNonStandard) {
+  RegisterTestScheme("customstd", "test1");
+  RegisterTestScheme("customnonstd", std::string());
+  SetUpXSS("customstd://test1/run.html", "customnonstd:some%20value");
+
+  CefRefPtr<TestSchemeHandler> handler = new TestSchemeHandler(&g_TestResults);
+  handler->ExecuteTest();
+  ReleaseAndWaitForDestructor(handler);
+
+  EXPECT_TRUE(g_TestResults.got_request);
+  EXPECT_TRUE(g_TestResults.got_read);
+  EXPECT_TRUE(g_TestResults.got_output);
+  EXPECT_TRUE(g_TestResults.got_sub_request);
+  EXPECT_TRUE(g_TestResults.got_sub_read);
+  EXPECT_FALSE(g_TestResults.got_sub_success);
+
+  ClearTestSchemes();
+}
+
+// Test that a cross-protocol iframe load succeeds, and that the HTTP protocol
+// cannot generate XSS requests to the custom standard scheme by default.
+TEST(SchemeHandlerTest, HttpXSSDifferentProtocolCustomStandard) {
+  RegisterTestScheme("http", "test1");
+  RegisterTestScheme("customstd", "test2");
+  SetUpXSS("http://test1/run.html", "customstd://test2/iframe.html");
+
+  CefRefPtr<TestSchemeHandler> handler = new TestSchemeHandler(&g_TestResults);
+  handler->ExecuteTest();
+  ReleaseAndWaitForDestructor(handler);
+
+  EXPECT_TRUE(g_TestResults.got_request);
+  EXPECT_TRUE(g_TestResults.got_read);
+  EXPECT_TRUE(g_TestResults.got_output);
+  EXPECT_TRUE(g_TestResults.got_sub_request);
+  EXPECT_TRUE(g_TestResults.got_sub_read);
+  EXPECT_FALSE(g_TestResults.got_sub_success);
+
+  ClearTestSchemes();
+}
+
+// Test that a cross-protocol iframe load succeeds, and that the HTTP protocol
+// cannot generate XSS requests to the custom non-standard scheme by default.
+TEST(SchemeHandlerTest, HttpXSSDifferentProtocolCustomNonStandard) {
+  RegisterTestScheme("http", "test1");
+  RegisterTestScheme("customnonstd", std::string());
+  SetUpXSS("http://test1/run.html", "customnonstd:some%20value");
 
   CefRefPtr<TestSchemeHandler> handler = new TestSchemeHandler(&g_TestResults);
   handler->ExecuteTest();
@@ -1865,10 +2191,7 @@ TEST(SchemeHandlerTest,
 }
 
 // Test that a custom standard scheme can generate cross-domain XHR requests
-// that perform redirects when using the cross-origin whitelist. This is
-// because we add an "Access-Control-Allow-Origin" header internally in
-// CefResourceDispatcherHostDelegate::OnRequestRedirected() for the redirect
-// request.
+// that perform redirects when using the cross-origin whitelist.
 TEST(SchemeHandlerTest,
      CustomStandardXHRDifferentOriginRedirectWithWhitelistAsync1) {
   RegisterTestScheme("customstd", "test1");
@@ -1974,10 +2297,7 @@ TEST(SchemeHandlerTest,
 }
 
 // Test that a custom standard scheme can generate cross-domain Fetch requests
-// that perform redirects when using the cross-origin whitelist. This is
-// because we add an "Access-Control-Allow-Origin" header internally in
-// CefResourceDispatcherHostDelegate::OnRequestRedirected() for the redirect
-// request.
+// that perform redirects when using the cross-origin whitelist.
 TEST(SchemeHandlerTest,
      CustomStandardFetchDifferentOriginRedirectWithWhitelist1) {
   RegisterTestScheme("customstdfetch", "test1");

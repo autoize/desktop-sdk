@@ -54,6 +54,7 @@ HEADERS += \
     $$CEF_SRC_PATH/include/capi/cef_context_menu_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_cookie_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_crash_util_capi.h \
+    $$CEF_SRC_PATH/include/capi/cef_devtools_message_observer_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_dialog_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_display_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_dom_capi.h \
@@ -72,6 +73,7 @@ HEADERS += \
     $$CEF_SRC_PATH/include/capi/cef_keyboard_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_life_span_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_load_handler_capi.h \
+    $$CEF_SRC_PATH/include/capi/cef_media_router_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_menu_model_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_menu_model_delegate_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_navigation_entry_capi.h \
@@ -82,6 +84,7 @@ HEADERS += \
     $$CEF_SRC_PATH/include/capi/cef_print_settings_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_process_message_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_process_util_capi.h \
+    $$CEF_SRC_PATH/include/capi/cef_registration_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_render_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_render_process_handler_capi.h \
     $$CEF_SRC_PATH/include/capi/cef_request_callback_capi.h \
@@ -149,6 +152,7 @@ HEADERS += \
     $$CEF_SRC_PATH/include/cef_context_menu_handler.h \
     $$CEF_SRC_PATH/include/cef_cookie.h \
     $$CEF_SRC_PATH/include/cef_crash_util.h \
+    $$CEF_SRC_PATH/include/cef_devtools_message_observer.h \
     $$CEF_SRC_PATH/include/cef_dialog_handler.h \
     $$CEF_SRC_PATH/include/cef_display_handler.h \
     $$CEF_SRC_PATH/include/cef_dom.h \
@@ -167,6 +171,7 @@ HEADERS += \
     $$CEF_SRC_PATH/include/cef_keyboard_handler.h \
     $$CEF_SRC_PATH/include/cef_life_span_handler.h \
     $$CEF_SRC_PATH/include/cef_load_handler.h \
+    $$CEF_SRC_PATH/include/cef_media_router.h \
     $$CEF_SRC_PATH/include/cef_menu_model.h \
     $$CEF_SRC_PATH/include/cef_menu_model_delegate.h \
     $$CEF_SRC_PATH/include/cef_navigation_entry.h \
@@ -179,6 +184,7 @@ HEADERS += \
     $$CEF_SRC_PATH/include/cef_print_settings.h \
     $$CEF_SRC_PATH/include/cef_process_message.h \
     $$CEF_SRC_PATH/include/cef_process_util.h \
+    $$CEF_SRC_PATH/include/cef_registration.h \
     $$CEF_SRC_PATH/include/cef_render_handler.h \
     $$CEF_SRC_PATH/include/cef_render_process_handler.h \
     $$CEF_SRC_PATH/include/cef_request.h \
@@ -269,6 +275,7 @@ HEADERS += \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/cpptoc_ref_counted.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/cpptoc_scoped.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/delete_cookies_callback_cpptoc.h \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/dev_tools_message_observer_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/dialog_handler_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/display_handler_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/domvisitor_cpptoc.h \
@@ -283,6 +290,9 @@ HEADERS += \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/keyboard_handler_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/life_span_handler_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/load_handler_cpptoc.h \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/media_observer_cpptoc.h \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/media_route_create_callback_cpptoc.h \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/media_sink_device_info_callback_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/menu_model_delegate_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/navigation_entry_visitor_cpptoc.h \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/pdf_print_callback_cpptoc.h \
@@ -347,6 +357,10 @@ HEADERS += \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/image_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/jsdialog_callback_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/list_value_ctocpp.h \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_router_ctocpp.h \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_route_ctocpp.h \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_sink_ctocpp.h \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_source_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/menu_model_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/navigation_entry_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/post_data_ctocpp.h \
@@ -355,6 +369,7 @@ HEADERS += \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/print_job_callback_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/print_settings_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/process_message_ctocpp.h \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/registration_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/request_callback_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/request_context_ctocpp.h \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/request_ctocpp.h \
@@ -436,6 +451,7 @@ SOURCES += \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/cookie_access_filter_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/cookie_visitor_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/delete_cookies_callback_cpptoc.cc \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/dev_tools_message_observer_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/dialog_handler_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/display_handler_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/domvisitor_cpptoc.cc \
@@ -450,6 +466,9 @@ SOURCES += \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/keyboard_handler_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/life_span_handler_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/load_handler_cpptoc.cc \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/media_observer_cpptoc.cc \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/media_route_create_callback_cpptoc.cc \
+    $$CEF_SRC_PATH/libcef_dll/cpptoc/media_sink_device_info_callback_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/menu_model_delegate_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/navigation_entry_visitor_cpptoc.cc \
     $$CEF_SRC_PATH/libcef_dll/cpptoc/pdf_print_callback_cpptoc.cc \
@@ -512,6 +531,10 @@ SOURCES += \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/image_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/jsdialog_callback_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/list_value_ctocpp.cc \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_router_ctocpp.cc \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_route_ctocpp.cc \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_sink_ctocpp.cc \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/media_source_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/menu_model_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/navigation_entry_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/post_data_ctocpp.cc \
@@ -520,6 +543,7 @@ SOURCES += \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/print_job_callback_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/print_settings_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/process_message_ctocpp.cc \
+    $$CEF_SRC_PATH/libcef_dll/ctocpp/registration_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/request_callback_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/request_context_ctocpp.cc \
     $$CEF_SRC_PATH/libcef_dll/ctocpp/request_ctocpp.cc \
@@ -586,6 +610,7 @@ SOURCES += \
 
 core_windows {
 HEADERS += \
+    $$CEF_SRC_PATH/include/base/internal/cef_atomicops_arm64_msvc.h \
     $$CEF_SRC_PATH/include/base/internal/cef_atomicops_x86_msvc.h \
     $$CEF_SRC_PATH/include/base/internal/cef_bind_internal_win.h \
     $$CEF_SRC_PATH/include/cef_sandbox_win.h \
@@ -595,6 +620,7 @@ HEADERS += \
 
 core_linux {
 HEADERS += \
+    $$CEF_SRC_PATH/include/base/internal/cef_atomicops_arm64_gcc.h \
     $$CEF_SRC_PATH/include/base/internal/cef_atomicops_arm_gcc.h \
     $$CEF_SRC_PATH/include/base/internal/cef_atomicops_atomicword_compat.h \
     $$CEF_SRC_PATH/include/base/internal/cef_atomicops_x86_gcc.h \

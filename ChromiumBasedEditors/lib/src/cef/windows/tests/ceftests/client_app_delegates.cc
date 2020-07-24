@@ -9,10 +9,9 @@ using client::ClientAppBrowser;
 using client::ClientAppRenderer;
 
 void CreateBrowserDelegates(ClientAppBrowser::DelegateSet& delegates) {
-  // Bring in the Frame tests.
-  extern void CreateFrameBrowserTests(ClientAppBrowser::DelegateSet &
-                                      delegates);
-  CreateFrameBrowserTests(delegates);
+  // Bring in audio output tests.
+  extern void CreateAudioOutputTests(ClientAppBrowser::DelegateSet & delegates);
+  CreateAudioOutputTests(delegates);
 
   // Bring in the Navigation tests.
   extern void CreateNavigationBrowserTests(ClientAppBrowser::DelegateSet &
@@ -28,15 +27,6 @@ void CreateBrowserDelegates(ClientAppBrowser::DelegateSet& delegates) {
   extern void CreatePreferenceBrowserTests(ClientAppBrowser::DelegateSet &
                                            delegates);
   CreatePreferenceBrowserTests(delegates);
-
-  // Bring in the RequestHandler tests.
-  extern void CreateRequestHandlerBrowserTests(ClientAppBrowser::DelegateSet &
-                                               delegates);
-  CreateRequestHandlerBrowserTests(delegates);
-
-  // Bring in the V8 tests.
-  extern void CreateV8BrowserTests(ClientAppBrowser::DelegateSet & delegates);
-  CreateV8BrowserTests(delegates);
 }
 
 void CreateRenderDelegates(ClientAppRenderer::DelegateSet& delegates) {
@@ -126,7 +116,7 @@ void ClientAppBrowser::CreateDelegates(DelegateSet& delegates) {
 
 // static
 CefRefPtr<CefPrintHandler> ClientAppBrowser::CreatePrintHandler() {
-  return NULL;
+  return nullptr;
 }
 
 // static

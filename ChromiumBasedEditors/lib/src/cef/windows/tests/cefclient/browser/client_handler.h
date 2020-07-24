@@ -14,6 +14,7 @@
 #include "include/wrapper/cef_message_router.h"
 #include "include/wrapper/cef_resource_manager.h"
 #include "tests/cefclient/browser/client_types.h"
+#include "tests/cefclient/browser/test_runner.h"
 
 #if defined(OS_LINUX)
 #include "tests/cefclient/browser/dialog_handler_gtk.h"
@@ -255,6 +256,7 @@ class ClientHandler : public CefClient,
       CefRefPtr<CefSelectClientCertificateCallback> callback) OVERRIDE;
   void OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser,
                                  TerminationStatus status) OVERRIDE;
+  void OnDocumentAvailableInMainFrame(CefRefPtr<CefBrowser> browser) OVERRIDE;
 
   // CefResourceRequestHandler methods
   cef_return_value_t OnBeforeResourceLoad(
@@ -292,6 +294,9 @@ class ClientHandler : public CefClient,
 
   // Show SSL information for the current site.
   void ShowSSLInformation(CefRefPtr<CefBrowser> browser);
+
+  // Set a string resource for loading via StringResourceProvider.
+  void SetStringResource(const std::string& page, const std::string& data);
 
   // Returns the Delegate.
   Delegate* delegate() const { return delegate_; }
@@ -340,6 +345,8 @@ class ClientHandler : public CefClient,
   void BuildTestMenu(CefRefPtr<CefMenuModel> model);
   bool ExecuteTestMenu(int command_id);
 
+  void SetOfflineState(CefRefPtr<CefBrowser> browser, bool offline);
+
   // THREAD SAFE MEMBERS
   // The following members may be accessed from any thread.
 
@@ -351,6 +358,9 @@ class ClientHandler : public CefClient,
 
   // True if mouse cursor change is disabled.
   bool mouse_cursor_change_disabled_;
+
+  // True if the browser is currently offline.
+  bool offline_;
 
   // True if Favicon images should be downloaded.
   bool download_favicon_images_;
@@ -366,6 +376,10 @@ class ClientHandler : public CefClient,
 
   // Manages the registration and delivery of resources.
   CefRefPtr<CefResourceManager> resource_manager_;
+
+  // Used to manage string resources in combination with StringResourceProvider.
+  // Only accessed on the IO thread.
+  test_runner::StringResourceMap string_resource_map_;
 
   // MAIN THREAD MEMBERS
   // The following members will only be accessed on the main thread. This will
